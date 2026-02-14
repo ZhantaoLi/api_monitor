@@ -51,60 +51,34 @@ api_monitor/
       └─ target_<id>_<yyyyMMdd_HHmmss>.jsonl
 ```
 
-## Linux Docker 部署教程（Ubuntu 22.04）
+## Linux Docker 部署
 
-### 1. 安装 Docker 与 Compose 插件
-
-```bash
-sudo apt update
-sudo apt install -y ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo $VERSION_CODENAME) stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
-
-可选（让当前用户免 `sudo`）：
+### 1. 拉取代码并进入项目
 
 ```bash
-sudo usermod -aG docker $USER
-newgrp docker
+git clone https://github.com/ZhantaoLi/api_monitor
+cd ./api_monitor
 ```
 
-### 2. 拉取代码并进入项目
-
-```bash
-git clone <your-repo-url>
-cd <your-repo>/api_monitor
-```
-
-### 3. 启动服务
+### 2. 启动服务
 
 ```bash
 docker compose up -d --build
-docker compose ps
 ```
 
-### 4. 验证服务
+### 3. 验证服务
 
 ```bash
-curl http://127.0.0.1:8000/api/health
+curl http://127.0.0.1:8081/api/health
 ```
 
 访问页面：
 
-- 主界面：`http://<服务器IP>:8000/`
-- 日志页：`http://<服务器IP>:8000/viewer.html?target_id=1`
-- 分析页：`http://<服务器IP>:8000/analysis.html?target_id=1`
+- 主界面：`http://<服务器IP>:8081/`
+- 日志页：`http://<服务器IP>:8081/viewer.html?target_id=1`
+- 分析页：`http://<服务器IP>:8081/analysis.html?target_id=1`
 
-### 5. 常用运维命令
+### 4. 常用项目运维命令
 
 ```bash
 # 查看日志
@@ -132,7 +106,7 @@ source .venv/bin/activate
 # .\.venv\Scripts\Activate.ps1
 
 pip install -r requirements.txt
-uvicorn app:app --host 0.0.0.0 --port 8000
+uvicorn app:app --host 0.0.0.0 --port 8081
 ```
 
 ## 核心流程
@@ -194,3 +168,7 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 - 当前默认无登录鉴权；公网部署请自行加反向代理和访问控制。
 - `api_key` 明文存储在 SQLite（按你的需求设计）。
 - `.gitignore` 默认忽略 `data/`，提交仓库前不会带运行数据。
+
+## 致谢
+  
+ - https://github.com/chxcodepro/model-check

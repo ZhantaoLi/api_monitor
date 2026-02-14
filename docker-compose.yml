@@ -4,7 +4,7 @@ services:
     container_name: api-monitor
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8081:8081"
     environment:
       - LOG_CLEANUP_ENABLED=1
       - LOG_MAX_SIZE_MB=512
