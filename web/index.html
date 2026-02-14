@@ -1,0 +1,606 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Monitor Dashboard</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontSize: {
+            'xxs': '0.65rem',
+          },
+          colors: {
+            zinc: { 850: '#26262a', 900: '#1e1e21', 950: '#121215' },
+            neon: {
+              blue: '#00f3ff',
+              pink: '#ff00ff',
+              purple: '#9d00ff',
+            }
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- Shared Assets -->
+  <link rel="stylesheet" href="/static/assets/styles.css">
+  <script src="/static/assets/main.js"></script>
+</head>
+
+<body
+  class="bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-screen bg-grid transition-colors duration-300"
+  x-data="dashboard()">
+
+  <!-- Sticky Navbar -->
+  <nav
+    class="sticky top-0 z-40 w-full bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <!-- Logo -->
+      <div class="flex items-center gap-2 cursor-pointer" onclick="window.location.reload()">
+        <div class="relative w-8 h-8 flex items-center justify-center bg-zinc-900 dark:bg-white rounded-lg">
+          <i class="ph-bold ph-activity text-white dark:text-zinc-900 text-xl"></i>
+        </div>
+        <span class="text-xl font-bold text-zinc-900 dark:text-white">
+          API <span class="font-normal text-zinc-500 dark:text-zinc-400 ml-1">Monitor</span>
+        </span>
+      </div>
+
+      <!-- Metrics (Desktop) -->
+      <div class="hidden md:flex items-center gap-8">
+        <div class="flex flex-col items-center">
+          <span class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">渠道 (Channel)</span>
+          <span class="font-mono font-bold text-lg" x-text="stats.targets">0</span>
+        </div>
+        <div class="w-px h-8 bg-zinc-200 dark:bg-zinc-800"></div>
+        <div class="flex flex-col items-center">
+          <span class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">模型 (Models)</span>
+          <span class="font-mono font-bold text-lg" x-text="stats.models">0</span>
+        </div>
+        <div class="w-px h-8 bg-zinc-200 dark:bg-zinc-800"></div>
+        <div class="flex flex-col items-center">
+          <span class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">健康 (Healthy)</span>
+          <span class="font-mono font-bold text-lg text-green-500" x-text="stats.healthy">0</span>
+        </div>
+        <div class="w-px h-8 bg-zinc-200 dark:bg-zinc-800"></div>
+        <div class="flex flex-col items-center">
+          <span class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">健康率 (Rate)</span>
+          <span class="font-mono font-bold text-lg text-indigo-500" x-text="stats.rate + '%'">0%</span>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex items-center gap-3">
+        <button @click="refreshData()"
+          class="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-indigo-500 transition-colors"
+          title="刷新数据">
+          <i class="ph-bold ph-arrows-clockwise" :class="loading ? 'animate-spin text-indigo-500' : ''"></i>
+        </button>
+        <button @click="Utils.toggleTheme()"
+          class="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+          <i class="ph-bold ph-sun dark:hidden"></i>
+          <i class="ph-bold ph-moon hidden dark:block"></i>
+        </button>
+        <button @click="openCreateModal()"
+          class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all shadow-lg shadow-indigo-500/20 active:scale-95">
+          <i class="ph-bold ph-plus"></i>
+          <span>新增渠道</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 py-8 space-y-6 mb-24">
+
+    <!-- List -->
+    <div class="space-y-4">
+      <template x-for="t in filteredTargets" :key="t.id">
+        <div
+          class="glass-panel rounded-xl overflow-hidden transition-all duration-300 hover:border-zinc-300 dark:hover:border-zinc-700"
+          x-data="{ expanded: false }">
+
+          <!-- Row Header -->
+          <div class="p-5 flex items-center justify-between group cursor-pointer" @click="expanded = !expanded">
+            <div class="flex items-center gap-5">
+              <!-- Status Dot -->
+              <div class="relative flex items-center justify-center w-4 h-4">
+                <span class="status-dot w-3 h-3 transition-colors duration-300" :class="{
+                    'healthy': t.last_status === 'healthy',
+                    'degraded': t.last_status === 'degraded',
+                    'down': ['down', 'error'].includes(t.last_status),
+                    'unknown': !t.last_status
+                  }"></span>
+                <span x-show="t.running"
+                  class="absolute inline-flex w-full h-full rounded-full opacity-75 bg-sky-400 animate-ping"></span>
+              </div>
+
+              <!-- Info -->
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-bold text-base" x-text="t.name"></h3>
+                  <span x-show="!t.enabled"
+                    class="px-1.5 py-0.5 rounded text-xxs bg-zinc-200 dark:bg-zinc-800 text-zinc-500 border border-zinc-300 dark:border-zinc-700">DISABLED</span>
+                </div>
+                <div class="text-xs text-zinc-500 font-mono mt-0.5 flex items-center gap-2">
+                  <span x-text="t.base_url"></span>
+                  <span class="opacity-30">|</span>
+                  <span class="flex items-center gap-1">
+                    <i class="ph-bold ph-clock"></i>
+                    <span x-text="Utils.fmtTime(t.last_run_at)"></span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Stats & Actions -->
+            <div class="flex items-center gap-6">
+              <!-- Health Bar -->
+              <div class="flex flex-col items-end gap-1 w-32" x-show="t.enabled && t.last_total > 0">
+                <div class="text-xs font-bold" x-text="t.last_success_rate + '% Success'"></div>
+                <div class="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                  <div class="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                    :style="`width: ${t.last_success_rate}%`"></div>
+                </div>
+              </div>
+
+              <!-- Chevron -->
+              <button
+                class="p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 transition-transform duration-300"
+                :class="expanded ? 'rotate-180' : ''">
+                <i class="ph-bold ph-caret-down"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Expanded Details -->
+          <div x-show="expanded" x-collapse>
+            <div class="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 p-5">
+
+              <!-- Actions Bar -->
+              <div class="flex justify-between items-center mb-4">
+                <span class="text-xs font-bold uppercase text-zinc-500 tracking-wider">模型状态 (Model Status)</span>
+                <div class="flex gap-2">
+                  <button @click.stop="runTarget(t.id)" :disabled="t.running"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="ph-bold ph-play" :class="t.running ? 'animate-pulse' : ''"></i>
+                    <span x-text="t.running ? '检测中...' : '立即检测'"></span>
+                  </button>
+                  <a :href="`/viewer.html?target_id=${t.id}`"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors flex items-center gap-1.5">
+                    <i class="ph-bold ph-list-magnifying-glass"></i>
+                    详细日志
+                  </a>
+                  <button @click.stop="copyConfig(t).then(() => { 
+                      const btn = $el; 
+                      const orig = btn.innerHTML; 
+                      btn.innerHTML = '<i class=\'ph-bold ph-check text-green-500\'></i>'; 
+                      setTimeout(() => btn.innerHTML = orig, 1500); 
+                    })"
+                    class="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 transition-colors"
+                    title="Copy API URL & Key">
+                    <i class="ph-bold ph-copy"></i>
+                  </button>
+                  <button @click.stop="openEdit(t)"
+                    class="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 transition-colors">
+                    <i class="ph-bold ph-pencil-simple"></i>
+                  </button>
+                  <button @click.stop="toggleEnabled(t)"
+                    class="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                    :class="t.enabled ? 'text-zinc-500' : 'text-zinc-400'">
+                    <i class="ph-bold" :class="t.enabled ? 'ph-power' : 'ph-plug'"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Models Grid -->
+              <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                <template x-if="!t.latest_models || t.latest_models.length === 0">
+                  <div class="col-span-full py-4 text-center text-xs text-zinc-500 italic">
+                    暂无模型数据，请运行检测。
+                  </div>
+                </template>
+                <template x-for="m in t.latest_models" :key="m.model">
+                  <div class="p-3 rounded-lg border bg-white dark:bg-zinc-900 shadow-sm transition-all"
+                    :class="m.success ? 'border-emerald-500/30 text-zinc-800 dark:text-zinc-200' : 'border-rose-500/50 text-rose-500 bg-rose-50 dark:bg-rose-900/10'">
+                    <div class="flex items-center justify-between mb-1">
+                      <div class="w-1.5 h-1.5 rounded-full" :class="m.success ? 'bg-emerald-500' : 'bg-rose-500'"></div>
+                      <span class="text-[10px] font-mono opacity-60"
+                        :class="m.success ? 'text-zinc-500' : 'text-rose-500'"
+                        x-text="m.success ? Utils.fmtDuration(m.duration).text : 'ERR'"></span>
+                    </div>
+                    <div class="text-xs font-medium truncate" :title="m.model" x-text="m.model"></div>
+                    <div x-show="m.error" class="mt-1 text-[10px] opacity-70 truncate border-t border-rose-500/20 pt-1"
+                      x-text="m.error" :title="m.error"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </template>
+    </div>
+
+    <!-- Empty State -->
+    <template x-if="filteredTargets.length === 0 && !loading">
+      <div class="text-center py-20">
+        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-zinc-100 dark:bg-zinc-800 mb-4">
+          <i class="ph-duotone ph-magnifying-glass text-4xl text-zinc-400"></i>
+        </div>
+        <h3 class="text-lg font-bold text-zinc-900 dark:text-white mb-1">没有找到相关渠道</h3>
+        <p class="text-zinc-500 text-sm">尝试调整过滤器或搜索关键词</p>
+      </div>
+    </template>
+
+    <!-- Floating Filter Bar -->
+    <div class="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-4xl px-4 pointer-events-none">
+      <div class="liquid-glass p-3 flex flex-wrap items-center justify-between gap-4 pointer-events-auto">
+
+        <!-- Filters Group -->
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <div
+            class="flex items-center gap-2 bg-white/20 dark:bg-black/20 px-3 py-2 rounded-xl transition-colors hover:bg-white/30 dark:hover:bg-black/30 border border-white/10">
+            <i class="ph-bold ph-funnel text-zinc-600 dark:text-zinc-300"></i>
+            <select x-model="filterProtocol"
+              class="bg-transparent border-none text-sm focus:ring-0 text-zinc-900 dark:text-zinc-100 cursor-pointer outline-none py-0 pr-2">
+              <option value="all">All Protocols</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="google">Google</option>
+            </select>
+          </div>
+
+          <div
+            class="flex items-center gap-2 bg-white/20 dark:bg-black/20 px-3 py-2 rounded-xl transition-colors hover:bg-white/30 dark:hover:bg-black/30 border border-white/10">
+            <i class="ph-bold ph-check-circle text-zinc-600 dark:text-zinc-300"></i>
+            <select x-model="filterStatus"
+              class="bg-transparent border-none text-sm focus:ring-0 text-zinc-900 dark:text-zinc-100 cursor-pointer outline-none py-0 pr-2">
+              <option value="all">All Status</option>
+              <option value="healthy">Healthy</option>
+              <option value="degraded">Degraded</option>
+              <option value="down">Down/Error</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Search Input -->
+        <div class="flex-1 min-w-[200px]">
+          <div class="relative group">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i
+                class="ph-bold ph-magnifying-glass text-zinc-400 group-focus-within:text-indigo-500 transition-colors"></i>
+            </div>
+            <input type="text" x-model="search" placeholder="Search models or channels..."
+              class="block w-full pl-10 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-xl border-none focus:ring-2 focus:ring-indigo-500/50 placeholder-zinc-500 outline-none transition-all">
+          </div>
+        </div>
+
+        <!-- Scroll to Top -->
+        <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})"
+          class="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-indigo-500 hover:text-white text-zinc-500 dark:text-zinc-400 transition-colors"
+          title="Scroll to Top">
+          <i class="ph-bold ph-arrow-up"></i>
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Modal -->
+  <div x-cloak x-show="modalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    @keydown.escape.window="closeModal()">
+    <div x-show="modalOpen" x-transition.opacity class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      @click="closeModal()"></div>
+
+    <div x-show="modalOpen" x-transition:enter="transition ease-out duration-300"
+      x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+      x-transition:enter-end="opacity-100 translate-y-0 scale-100" x-transition:leave="transition ease-in duration-200"
+      x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+      x-transition:leave-end="opacity-0 translate-y-4 scale-95"
+      class="glass-modal relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+
+      <div
+        class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-zinc-50/50 dark:bg-zinc-900/50">
+        <h3 class="font-bold text-lg flex items-center gap-2">
+          <i class="ph-bold text-indigo-500" :class="editingId ? 'ph-pencil-simple' : 'ph-plus-circle'"></i>
+          <span x-text="editingId ? '编辑渠道' : '新增渠道'"></span>
+        </h3>
+        <button @click="closeModal()" class="text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors">
+          <i class="ph-bold ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-4">
+        <div class="space-y-1">
+          <label class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">名称 (Name)</label>
+          <input type="text" x-model="form.name" class="w-full form-input rounded-lg px-3 py-2 text-sm"
+            placeholder="e.g. OpenAI Prod">
+        </div>
+        <div class="space-y-1">
+          <label class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">Base URL</label>
+          <input type="text" x-model="form.base_url" class="w-full form-input rounded-lg px-3 py-2 text-sm font-mono"
+            placeholder="https://api.openai.com/v1">
+        </div>
+        <div class="space-y-1">
+          <label class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">API Key</label>
+          <input type="password" x-model="form.api_key" class="w-full form-input rounded-lg px-3 py-2 text-sm font-mono"
+            placeholder="sk-...">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-1">
+            <label class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">间隔 (Minutes)</label>
+            <input type="number" x-model.number="form.interval_min"
+              class="w-full form-input rounded-lg px-3 py-2 text-sm">
+          </div>
+          <div class="space-y-1">
+            <label class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">超时 (Seconds)</label>
+            <input type="number" x-model.number="form.timeout_s" class="w-full form-input rounded-lg px-3 py-2 text-sm">
+          </div>
+        </div>
+
+        <!-- Advanced Collapse -->
+        <div x-data="{ showAdv: false }">
+          <button @click="showAdv = !showAdv" type="button"
+            class="text-xs font-bold text-indigo-500 flex items-center gap-1 hover:text-indigo-400">
+            <i class="ph-bold" :class="showAdv ? 'ph-caret-up' : 'ph-caret-down'"></i> 高级设置
+          </button>
+          <div x-show="showAdv" x-collapse class="mt-3 space-y-4 pt-4 border-t border-zinc-200 dark:border-zinc-800">
+            <div class="space-y-1">
+              <label class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">Max Models (0=All)</label>
+              <input type="number" x-model.number="form.max_models"
+                class="w-full form-input rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div class="space-y-1">
+              <label class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">Prompt</label>
+              <textarea x-model="form.prompt" rows="2"
+                class="w-full form-input rounded-lg px-3 py-2 text-sm font-mono"></textarea>
+            </div>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" x-model="form.verify_ssl"
+                class="rounded bg-zinc-800 border-zinc-600 text-indigo-600 focus:ring-0">
+              <span class="text-xs text-zinc-400">Verify SSL</span>
+            </label>
+            <div class="space-y-1">
+              <label class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">Anthropic Version</label>
+              <input type="text" x-model="form.anthropic_version"
+                class="w-full form-input rounded-lg px-3 py-2 text-sm font-mono" placeholder="2023-06-01">
+            </div>
+          </div>
+        </div>
+
+        <div x-show="formError" x-text="formError"
+          class="p-2 text-xs text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded-lg"></div>
+      </div>
+
+      <div class="p-6 pt-0 flex gap-3">
+        <button @click="closeModal()"
+          class="flex-1 py-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-sm font-bold transition-colors">取消</button>
+        <button @click="submitForm()"
+          class="flex-1 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-500/20 transition-transform active:scale-95">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function dashboard() {
+      return {
+        targets: [],
+        loading: false,
+        search: '',
+        filterProtocol: 'all',
+        filterStatus: 'all',
+        modalOpen: false,
+        editingId: null,
+        form: {},
+        formError: '',
+
+        defaultForm: {
+          name: '', base_url: '', api_key: '',
+          interval_min: 30, timeout_s: 30,
+          max_models: 0, prompt: 'What is the exact model identifier (model string) you are using for this chat/session?',
+          enabled: true, verify_ssl: false, anthropic_version: '2025-09-29'
+        },
+
+        init() {
+          this.loadData();
+          // Poll
+          setInterval(() => this.loadData(), 10000);
+        },
+
+        async loadData() {
+          try {
+            const res = await fetch('/api/targets');
+            const data = await res.json();
+            this.targets = data.items || [];
+          } catch (e) { console.error('Load failed', e); }
+        },
+
+        async refreshData() {
+          this.loading = true;
+          await this.loadData();
+          setTimeout(() => this.loading = false, 500);
+        },
+
+        get filteredTargets() {
+          let items = this.targets;
+
+          // Filter by Status
+          if (this.filterStatus !== 'all') {
+            if (this.filterStatus === 'down') {
+              items = items.filter(t => ['down', 'error'].includes(t.last_status));
+            } else {
+              items = items.filter(t => t.last_status === this.filterStatus);
+            }
+          }
+
+          // Filter by Protocol (search in latest_models)
+          if (this.filterProtocol !== 'all') {
+            items = items.filter(t =>
+              t.latest_models && t.latest_models.some(m => m.protocol === this.filterProtocol)
+            );
+          }
+
+          // Search (Name, URL, or Model Name)
+          if (this.search) {
+            const q = this.search.toLowerCase();
+            items = items.filter(t =>
+              t.name.toLowerCase().includes(q) ||
+              t.base_url.toLowerCase().includes(q) ||
+              (t.latest_models && t.latest_models.some(m => m.model.toLowerCase().includes(q)))
+            );
+          }
+          return items;
+        },
+
+        get stats() {
+          const total = this.targets.length;
+          // Count total models
+          const models = this.targets.reduce((sum, t) => sum + (t.latest_models?.length || 0), 0);
+
+          // Count healthy models (success=true)
+          const healthy = this.targets.reduce((sum, t) => {
+            const successCount = (t.latest_models || []).filter(m => m.success).length;
+            return sum + successCount;
+          }, 0);
+
+          const activeTargets = this.targets.filter(t => t.enabled && t.last_total > 0);
+          let rate = 0;
+          if (activeTargets.length > 0) {
+            const sumRate = activeTargets.reduce((s, t) => s + (t.last_success_rate || 0), 0);
+            rate = Math.round(sumRate / activeTargets.length);
+          }
+
+          return { targets: total, healthy, models, rate };
+        },
+
+        // Actions
+        openCreateModal() {
+          this.editingId = null;
+          this.form = { ...this.defaultForm };
+          this.formError = '';
+          this.modalOpen = true;
+        },
+
+        openEdit(t) {
+          this.editingId = t.id;
+          this.form = { ...t };
+          this.formError = '';
+          this.modalOpen = true;
+        },
+
+        closeModal() {
+          this.modalOpen = false;
+        },
+
+        async copyConfig(t) {
+          const text = `${t.base_url}\n${t.api_key}`;
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch (err) {
+            console.error('Failed to copy', err);
+            alert('Failed to copy to clipboard');
+          }
+        },
+
+        async submitForm() {
+          if (!this.form.name || !this.form.base_url || !this.form.api_key) {
+            this.formError = '请填写必要字段 (Name, URL, Key)';
+            return;
+          }
+
+          try {
+            const payload = { ...this.form };
+            let url = '/api/targets';
+            let method = 'POST';
+
+            if (this.editingId) {
+              url += `/${this.editingId}`;
+              method = 'PATCH';
+            }
+
+            const res = await fetch(url, {
+              method,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+              const err = await res.json();
+              throw new Error(err.detail || 'Failed');
+            }
+
+            // Get created/updated item
+            const result = await res.json();
+            const newItem = result.item;
+
+            this.closeModal();
+
+            // If creating new target, run immediately
+            if (!this.editingId && newItem && newItem.id) {
+              this.runTarget(newItem.id);
+            } else {
+              this.loadData();
+            }
+          } catch (e) {
+            this.formError = e.message;
+          }
+        },
+
+        async runTarget(id) {
+          try {
+            await fetch(`/api/targets/${id}/run`, { method: 'POST' });
+            this.loadData();
+          } catch (e) { alert('Failed to start run: ' + e.message); }
+        },
+
+        async toggleEnabled(t) {
+          try {
+            await fetch(`/api/targets/${t.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ enabled: !t.enabled })
+            });
+            this.loadData();
+          } catch (e) { console.error(e); }
+        },
+
+        // Helper for rate color
+        getColorForRate(rate) {
+          if (!rate) return 'text-zinc-500';
+          if (rate >= 90) return 'text-green-500';
+          if (rate >= 50) return 'text-yellow-500';
+          return 'text-red-500';
+        }
+      }
+    }
+  </script>
+  <svg xmlns="http://www.w3.org/2000/svg" style="width:0;height:0;position:absolute;">
+    <defs>
+      <filter id="glass-distortion" x="0%" y="0%" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.008 0.008" numOctaves="2" seed="40" result="noise" />
+        <feGaussianBlur in="noise" stdDeviation="2" result="blurred" />
+        <feDisplacementMap in="SourceGraphic" in2="blurred" scale="30" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </defs>
+  </svg>
+</body>
+
+</html>

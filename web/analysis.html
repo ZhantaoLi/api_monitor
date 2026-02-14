@@ -1,0 +1,1143 @@
+﻿<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Monitor - Analysis</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            // Neon/Cyberpunk palette for dark mode
+            neon: {
+              purple: '#b02be8',
+              blue: '#2b98e8',
+              green: '#2be8a5',
+              pink: '#e82b8b',
+              bg: '#121215',
+              card: '#1e1e21',
+              border: '#26262a'
+            },
+            // Clean Modern palette for light mode
+            modern: {
+              primary: '#3b82f6',
+              bg: '#f8fafc',
+              card: '#ffffff',
+              text: '#1e293b',
+              border: '#e2e8f0'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.1);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.5);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(100, 116, 139, 0.7);
+    }
+
+    /* Glassmorphism helpers */
+    .glass {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .light .glass {
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(226, 232, 240, 0.6);
+    }
+
+    /* Grid lines background */
+    .grid-bg {
+      background-size: 40px 40px;
+      background-image: linear-gradient(to right, rgba(51, 65, 85, 0.1) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(51, 65, 85, 0.1) 1px, transparent 1px);
+    }
+
+    /* Transitions */
+    .transition-all-300 {
+      transition: all 0.3s ease-in-out;
+    }
+
+    /* Status Glow */
+    .glow-success {
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+    }
+
+    .glow-error {
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+    }
+
+    /* JSON Pre */
+    pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+  </style>
+  <style>
+    /* Liquid Glass Effect */
+    :root {
+      --inner-shadow-color: rgba(255, 255, 255, 0.5);
+      --inner-shadow-blur: 1px;
+      --inner-shadow-spread: -5px;
+      --glass-tint-color: 255, 255, 255;
+      --glass-tint-opacity: 10;
+      --frost-blur-radius: 1px;
+      --glass-border-radius: 16px;
+    }
+
+    .dark {
+      --inner-shadow-color: rgba(255, 255, 255, 0.1);
+      --glass-tint-color: 0, 0, 0;
+      --glass-tint-opacity: 10;
+    }
+
+    .liquid-glass {
+      position: relative;
+      isolation: isolate;
+      border-radius: var(--glass-border-radius);
+      box-shadow: 0px 6px 24px rgba(0, 0, 0, 0.2);
+    }
+
+    .liquid-glass::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: var(--glass-border-radius);
+      box-shadow: inset 0 0 var(--inner-shadow-blur) var(--inner-shadow-spread) var(--inner-shadow-color);
+      background-color: rgba(var(--glass-tint-color), calc(var(--glass-tint-opacity) / 100));
+      pointer-events: none;
+    }
+
+    .liquid-glass::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+      border-radius: var(--glass-border-radius);
+      backdrop-filter: blur(var(--frost-blur-radius));
+      -webkit-backdrop-filter: blur(var(--frost-blur-radius));
+      filter: url(#glass-distortion);
+      /* The magic */
+      pointer-events: none;
+    }
+
+    /* Ensure content is above the glass effect */
+    .liquid-glass>* {
+      position: relative;
+      z-index: 10;
+    }
+  </style>
+</head>
+
+<body
+  class="bg-gray-900 text-gray-100 min-h-screen font-sans transition-colors duration-300 grid-bg selection:bg-neon-purple selection:text-white pb-20">
+
+  <!-- Navbar -->
+  <nav class="fixed top-0 w-full z-50 glass border-b border-gray-700 shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo -->
+        <div class="flex items-center gap-2 cursor-pointer" onclick="goBackToLogs()">
+          <i class="ph-bold ph-arrow-left text-xl text-neon-purple"></i>
+          <span class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-neon-purple to-neon-blue">
+            Back to <span class="font-normal text-gray-600 dark:text-gray-400">Logs</span>
+          </span>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-4">
+          <button onclick="refreshData()"
+            class="bg-neon-blue hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2">
+            <i class="ph-bold ph-arrows-clockwise"></i>
+            Refresh
+          </button>
+          <button id="themeToggle"
+            class="p-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all border border-gray-300 dark:border-gray-700">
+            <i class="ph-bold ph-moon"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 pt-24 space-y-8 opacity-0 translate-y-4 transition-all duration-700 pb-32"
+    id="mainContainer">
+
+    <!-- Loading State -->
+    <div id="loadingState" class="text-center py-20 hidden">
+      <div class="inline-flex items-center justify-center w-16 h-16 mb-4">
+        <i class="ph-duotone ph-spinner animate-spin text-4xl text-neon-purple"></i>
+      </div>
+      <p class="text-gray-500">Loading logs...</p>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="space-y-8">
+
+      <!-- Summary stats -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Card 1: Total Tests -->
+        <div
+          class="glass p-6 rounded-2xl relative overflow-hidden group hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors">
+          <div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <i class="ph-duotone ph-list-checks text-6xl text-blue-500"></i>
+          </div>
+          <p class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Tests
+          </p>
+          <h3 class="text-4xl font-bold mt-2 text-gray-900 dark:text-white" id="statTotal">0</h3>
+          <div class="mt-2 text-xs text-blue-400 flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+            Records processed
+          </div>
+        </div>
+
+        <!-- Card 2: Success Rate -->
+        <div class="glass p-6 rounded-2xl relative overflow-hidden group hover:bg-gray-800/50 transition-colors">
+          <div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <i class="ph-duotone ph-check-circle text-6xl text-green-500"></i>
+          </div>
+          <p class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Success
+            Rate</p>
+          <h3 class="text-4xl font-bold mt-2 text-green-400" id="statSuccessRate">0%</h3>
+          <div class="mt-2 text-xs text-green-500 flex items-center gap-1">
+            <span id="statSuccessCount">0</span> successful
+          </div>
+        </div>
+
+        <!-- Card 3: Avg Latency (Success) -->
+        <div class="glass p-6 rounded-2xl relative overflow-hidden group hover:bg-gray-800/50 transition-colors">
+          <div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <i class="ph-duotone ph-lightning text-6xl text-yellow-500"></i>
+          </div>
+          <p class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Avg Latency
+            (Success)</p>
+          <h3 class="text-4xl font-bold mt-2 text-yellow-400" id="statLatency">0ms</h3>
+          <div class="mt-2 text-xs text-yellow-500 flex items-center gap-1">
+            Across successful calls
+          </div>
+        </div>
+
+        <!-- Card 4: Protocols -->
+        <div class="glass p-6 rounded-2xl relative overflow-hidden group hover:bg-gray-800/50 transition-colors">
+          <div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <i class="ph-duotone ph-globe text-6xl text-purple-500"></i>
+          </div>
+          <p class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Protocols
+          </p>
+          <h3 class="text-4xl font-bold mt-2 text-purple-400" id="statProtocols">0</h3>
+          <div class="mt-2 text-xs text-purple-500 flex items-center gap-1">
+            Distinct protocols found
+          </div>
+        </div>
+      </div>
+
+      <!-- Analytics: Charts Row 1 (Latency + Status) -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Latency Chart -->
+        <div class="lg:col-span-2 glass p-6 rounded-2xl flex flex-col h-80">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold flex items-center gap-2 text-gray-900 dark:text-white">
+              <i class="ph-duotone ph-chart-bar text-neon-blue"></i>
+              Latency by Model (Successful Only)
+            </h3>
+          </div>
+          <div class="flex-1 relative w-full h-full min-h-0">
+            <canvas id="latencyChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Status Donut -->
+        <div class="glass p-6 rounded-2xl flex flex-col h-80">
+          <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
+            <i class="ph-duotone ph-chart-pie-slice text-neon-pink"></i>
+            Success vs Failures
+          </h3>
+          <div class="flex-1 relative w-full h-full min-h-0 flex items-center justify-center">
+            <canvas id="statusChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analytics: Charts Row 2 (Timeline) -->
+      <div class="glass p-6 rounded-2xl">
+        <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
+          <i class="ph-duotone ph-trend-up text-neon-green"></i>
+          Request Timeline (Latency & Status)
+        </h3>
+        <div class="w-full h-64">
+          <canvas id="timelineChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Analytics: Data Row (Model Table + Errors) -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Model Performance Table -->
+        <div class="lg:col-span-2 glass p-6 rounded-2xl overflow-hidden flex flex-col h-96">
+          <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
+            <i class="ph-duotone ph-table text-neon-blue"></i>
+            Model Performance Analysis
+          </h3>
+          <div class="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
+            <table class="w-full text-left text-sm relative">
+              <thead
+                class="bg-gray-100/50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 sticky top-0 z-10 backdrop-blur-md">
+                <tr>
+                  <th class="p-3 rounded-l-lg">Model</th>
+                  <th class="p-3">Requests</th>
+                  <th class="p-3">Success Rate</th>
+                  <th class="p-3">Avg Latency</th>
+                  <th class="p-3">P95 Latency</th>
+                  <th class="p-3 rounded-r-lg">Errors</th>
+                </tr>
+              </thead>
+              <tbody id="modelAnalyticsBody"
+                class="divide-y divide-gray-200 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
+                <!-- JS Injected -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Top Errors -->
+        <div class="glass p-6 rounded-2xl flex flex-col h-96">
+          <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
+            <i class="ph-duotone ph-warning-circle text-red-500"></i>
+            Top Errors
+          </h3>
+          <div class="flex-1 relative w-full h-full overflow-y-auto custom-scrollbar">
+            <ul id="errorList" class="space-y-2 text-xs"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating Filter Bar (Fixed Bottom Center) -->
+      <div class="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-4xl px-4 pointer-events-none">
+        <div
+          class="liquid-glass p-3 flex flex-wrap items-center justify-between gap-4 pointer-events-auto border border-white/20 dark:border-white/10">
+
+          <!-- Filters Group -->
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <div
+              class="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-xl transition-colors hover:bg-gray-200 dark:hover:bg-gray-700">
+              <i class="ph-bold ph-funnel text-gray-500 dark:text-gray-400"></i>
+              <select id="filterProtocol"
+                class="bg-transparent border-none text-sm focus:ring-0 text-gray-900 dark:text-gray-200 cursor-pointer outline-none [&>option]:bg-white [&>option]:text-gray-900 dark:[&>option]:bg-gray-900 dark:[&>option]:text-gray-200 py-0 pr-8">
+                <option value="all">All Protocols</option>
+              </select>
+            </div>
+
+            <div
+              class="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-xl transition-colors hover:bg-gray-200 dark:hover:bg-gray-700">
+              <i class="ph-bold ph-check-circle text-gray-500 dark:text-gray-400"></i>
+              <select id="filterStatus"
+                class="bg-transparent border-none text-sm focus:ring-0 text-gray-900 dark:text-gray-200 cursor-pointer outline-none [&>option]:bg-white [&>option]:text-gray-900 dark:[&>option]:bg-gray-900 dark:[&>option]:text-gray-200 py-0 pr-8">
+                <option value="all">All Status</option>
+                <option value="success">Success</option>
+                <option value="error">Failure</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Search Input -->
+          <div class="flex-1 min-w-[200px]">
+            <div class="relative group">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <i
+                  class="ph-bold ph-magnifying-glass text-gray-400 group-focus-within:text-neon-blue transition-colors"></i>
+              </div>
+              <input type="text" id="searchInput" placeholder="Search logs (model, content, error)..."
+                class="block w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-xl border-none focus:ring-2 focus:ring-neon-blue/50 placeholder-gray-500 dark:placeholder-gray-500 outline-none transition-all">
+            </div>
+          </div>
+
+          <!-- Scroll to Top (Optional, fits nicely here) -->
+          <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})"
+            class="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-neon-blue hover:text-white text-gray-500 dark:text-gray-400 transition-colors"
+            title="Scroll to Top">
+            <i class="ph-bold ph-arrow-up"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="glass rounded-2xl border border-gray-300 dark:border-gray-700 overflow-hidden shadow-2xl">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr
+                class="bg-gray-100/50 dark:bg-gray-800/50 border-b border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-400 text-xs uppercase tracking-wider whitespace-nowrap">
+                <th class="p-4 w-12 text-center">#</th>
+                <th class="p-4 w-24 cursor-pointer hover:text-gray-900 dark:hover:text-white group"
+                  onclick="sortTable('timestamp')">
+                  Time <i class="ph-bold ph-caret-up-down opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </th>
+                <th class="p-4 w-24 cursor-pointer hover:text-gray-900 dark:hover:text-white group"
+                  onclick="sortTable('status')">
+                  Status <i class="ph-bold ph-caret-up-down opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </th>
+                <th class="p-4 cursor-pointer hover:text-gray-900 dark:hover:text-white group"
+                  onclick="sortTable('protocol')">
+                  Protocol <i class="ph-bold ph-caret-up-down opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </th>
+                <th class="p-4 cursor-pointer hover:text-gray-900 dark:hover:text-white group"
+                  onclick="sortTable('model')">
+                  Model <i class="ph-bold ph-caret-up-down opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </th>
+                <th class="p-4 w-32 cursor-pointer hover:text-gray-900 dark:hover:text-white group"
+                  onclick="sortTable('latency')">
+                  Latency <i class="ph-bold ph-caret-up-down opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </th>
+                <th class="p-4 w-32">Config</th>
+                <th class="p-4 w-12"></th> <!-- Expand Action -->
+              </tr>
+            </thead>
+            <tbody id="logTableBody"
+              class="text-sm text-gray-700 dark:text-gray-300 divide-y divide-gray-200/50 dark:divide-gray-700/50">
+              <!-- Rows will be injected here -->
+            </tbody>
+          </table>
+        </div>
+        <!-- Pagination (Simple) -->
+        <div
+          class="p-4 bg-gray-50 dark:bg-gray-800/30 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center text-xs text-gray-500">
+          <span id="showingCount">Showing 0 records</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Detail Modal -->
+  <div id="detailModal" class="fixed inset-0 z-[60] hidden">
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeModal()"></div>
+    <div
+      class="absolute inset-y-0 right-0 w-full max-w-2xl bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 shadow-2xl transform transition-transform duration-300 translate-x-full"
+      id="modalPanel">
+      <div class="h-full flex flex-col">
+        <div
+          class="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-900 z-10">
+          <div>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Log Details</h2>
+            <span id="modalId" class="text-xs font-mono text-gray-500">ID: ---</span>
+          </div>
+          <button onclick="closeModal()"
+            class="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+            <i class="ph-bold ph-x"></i>
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+          <!-- Status Header inside Modal -->
+          <div id="modalHeader"
+            class="flex items-center justify-between p-4 rounded-xl border border-gray-200/50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/20">
+            <!-- Injected via JS -->
+          </div>
+
+          <!-- Meta Data Grid -->
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50">
+              <span class="block text-xs uppercase text-gray-500 mb-1">Protocol</span>
+              <span id="modalProtocol" class="font-mono text-gray-900 dark:text-white">---</span>
+            </div>
+            <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50">
+              <span class="block text-xs uppercase text-gray-500 mb-1">Model</span>
+              <span id="modalModel" class="font-mono text-gray-900 dark:text-white">---</span>
+            </div>
+            <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50">
+              <span class="block text-xs uppercase text-gray-500 mb-1">Latency</span>
+              <span id="modalLatency" class="font-mono text-green-600 dark:text-green-400">---</span>
+            </div>
+            <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50">
+              <span class="block text-xs uppercase text-gray-500 mb-1">Stream</span>
+              <span id="modalStream" class="font-mono text-gray-900 dark:text-white">---</span>
+            </div>
+          </div>
+
+          <!-- Error Block -->
+          <div id="modalErrorContainer" class="hidden">
+            <h3 class="text-sm font-bold text-red-500 mb-2">Error Message</h3>
+            <div class="bg-red-900/10 border border-red-500/20 rounded-lg p-4">
+              <pre id="modalError" class="text-red-400 text-xs overflow-x-auto">---</pre>
+            </div>
+          </div>
+
+          <!-- Tool Calls -->
+          <div>
+            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
+              <i class="ph-duotone ph-wrench"></i> Tool Calls
+            </h3>
+            <div
+              class="bg-gray-50 dark:bg-gray-950 rounded-lg border border-gray-200 dark:border-gray-800 p-0 overflow-hidden">
+              <pre id="modalToolCalls" class="text-xs text-blue-600 dark:text-blue-300 p-4 overflow-x-auto">[]</pre>
+            </div>
+          </div>
+
+          <!-- Full Content -->
+          <div>
+            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
+              <i class="ph-duotone ph-text-aa"></i> Full Response Content
+            </h3>
+            <div
+              class="bg-gray-50 dark:bg-gray-950 rounded-lg border border-gray-200 dark:border-gray-800 p-0 overflow-hidden">
+              <pre id="modalContent" class="text-xs text-gray-700 dark:text-green-300 p-4 overflow-x-auto">...</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logic -->
+  <script>
+    // State
+    let logs = [];
+    let filteredLogs = [];
+    let sortState = { key: 'timestamp', direction: 'desc' }; // Default sort by time desc
+    const targetId = new URLSearchParams(window.location.search).get('target_id');
+
+    function goBackToLogs() {
+      if (targetId) {
+        window.location.href = `/viewer.html?target_id=${targetId}`;
+      } else {
+        window.location.href = '/';
+      }
+    }
+
+    // --- Initialization ---
+    document.addEventListener('DOMContentLoaded', () => {
+      // Theme handling
+      const themeToggle = document.getElementById('themeToggle');
+      const html = document.documentElement;
+      const body = document.body;
+
+      // Initialize theme from localStorage or default to dark
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'light') {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        body.classList.remove('bg-gray-900', 'text-gray-100');
+        body.classList.add('bg-gray-50', 'text-gray-900');
+        themeToggle.innerHTML = '<i class="ph-bold ph-sun"></i>';
+      } else {
+        html.classList.remove('light');
+        html.classList.add('dark');
+        body.classList.add('bg-gray-900', 'text-gray-100');
+        body.classList.remove('bg-gray-50', 'text-gray-900');
+        themeToggle.innerHTML = '<i class="ph-bold ph-moon"></i>';
+      }
+
+      themeToggle.addEventListener('click', () => {
+        const isDark = html.classList.contains('dark');
+        if (isDark) {
+          html.classList.remove('dark');
+          html.classList.add('light');
+          body.classList.remove('bg-gray-900', 'text-gray-100');
+          body.classList.add('bg-gray-50', 'text-gray-900');
+          themeToggle.innerHTML = '<i class="ph-bold ph-sun"></i>';
+          localStorage.setItem('theme', 'light');
+        } else {
+          html.classList.remove('light');
+          html.classList.add('dark');
+          body.classList.add('bg-gray-900', 'text-gray-100');
+          body.classList.remove('bg-gray-50', 'text-gray-900');
+          themeToggle.innerHTML = '<i class="ph-bold ph-moon"></i>';
+          localStorage.setItem('theme', 'dark');
+        }
+        updateChartTheme();
+      });
+
+      // Animate entry
+      setTimeout(() => {
+        document.getElementById('mainContainer').classList.remove('opacity-0', 'translate-y-4');
+      }, 100);
+
+      // Search & Filter
+      document.getElementById('searchInput').addEventListener('input', applyFilters);
+      document.getElementById('filterProtocol').addEventListener('change', applyFilters);
+      document.getElementById('filterStatus').addEventListener('change', applyFilters);
+
+      // Load Data
+      if (targetId) {
+        fetchLogs(targetId);
+      } else {
+        alert('No target ID provided');
+      }
+    });
+
+    // --- Data Fetching ---
+    async function fetchLogs(targetId) {
+      document.getElementById('loadingState').classList.remove('hidden');
+      document.getElementById('dashboard').classList.add('hidden');
+
+      try {
+        // Fetch last 500 logs ?limit=500
+        const res = await fetch(`/api/targets/${targetId}/logs?limit=500`);
+        if (!res.ok) throw new Error('Failed to fetch logs');
+
+        const data = await res.json();
+        logs = data.items.map(l => ({
+          ...l,
+          // Ensure numeric fields
+          duration: typeof l.duration === 'number' ? l.duration : 0,
+          timestamp: l.timestamp || 0,
+          success: !!l.success,
+          // Parse tool_calls if string
+          tool_calls: typeof l.tool_calls === 'string' ? JSON.parse(l.tool_calls) : l.tool_calls
+        }));
+
+        if (logs.length > 0) {
+          document.getElementById('loadingState').classList.add('hidden');
+          document.getElementById('dashboard').classList.remove('hidden');
+          populateFilters();
+          applyFilters();
+        } else {
+          document.getElementById('loadingState').innerHTML = '<p>No logs found for this target.</p>';
+        }
+      } catch (err) {
+        console.error(err);
+        document.getElementById('loadingState').innerHTML = `<p class="text-red-500">Error: ${err.message}</p>`;
+        document.getElementById('loadingState').classList.remove('hidden');
+      }
+    }
+
+    function refreshData() {
+      if (targetId) fetchLogs(targetId);
+    }
+
+    // --- Core Logic ---
+    function populateFilters() {
+      const protocols = [...new Set(logs.map(l => l.protocol))].filter(Boolean);
+      const select = document.getElementById('filterProtocol');
+      select.innerHTML = '<option value="all">All Protocols</option>';
+      protocols.forEach(p => {
+        select.innerHTML += `<option value="${p}">${p}</option>`;
+      });
+    }
+
+    function applyFilters() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const protocol = document.getElementById('filterProtocol').value;
+      const status = document.getElementById('filterStatus').value;
+
+      filteredLogs = logs.filter(log => {
+        const matchesSearch =
+          (log.model || '').toLowerCase().includes(query) ||
+          (log.content || '').toLowerCase().includes(query) ||
+          (log.error || '').toLowerCase().includes(query);
+
+        const matchesProtocol = protocol === 'all' || log.protocol === protocol;
+
+        let matchesStatus = true;
+        if (status === 'success') matchesStatus = log.success;
+        if (status === 'error') matchesStatus = !log.success;
+
+        return matchesSearch && matchesProtocol && matchesStatus;
+      });
+
+      // Apply sort
+      const { key, direction } = sortState;
+      const dir = direction === 'asc' ? 1 : -1;
+
+      filteredLogs.sort((a, b) => {
+        if (key === 'latency') return (a.duration - b.duration) * dir;
+        if (key === 'status') return (a.success === b.success ? 0 : a.success ? 1 : -1) * dir;
+        if (key === 'protocol') return (a.protocol || '').localeCompare(b.protocol || '') * dir;
+        if (key === 'model') return (a.model || '').localeCompare(b.model || '') * dir;
+        if (key === 'timestamp') return (a.timestamp - b.timestamp) * dir;
+        return 0;
+      });
+
+      updateStats();
+      updateCharts();
+      updateAnalytics();
+      renderTable();
+    }
+
+    function sortTable(key) {
+      if (sortState.key === key) {
+        sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortState.key = key;
+        sortState.direction = 'desc';
+      }
+      applyFilters(); // Re-sorts
+      updateSortIcons();
+    }
+
+    function updateSortIcons() {
+      document.querySelectorAll('th i').forEach(icon => {
+        icon.className = 'ph-bold ph-caret-up-down opacity-0 group-hover:opacity-100 transition-opacity';
+      });
+
+      const ths = document.querySelectorAll('thead th');
+      let targetTh = null;
+      if (sortState.key === 'timestamp') targetTh = ths[1];
+      if (sortState.key === 'status') targetTh = ths[2];
+      if (sortState.key === 'protocol') targetTh = ths[3];
+      if (sortState.key === 'model') targetTh = ths[4];
+      if (sortState.key === 'latency') targetTh = ths[5];
+
+      if (targetTh) {
+        const icon = targetTh.querySelector('i');
+        if (icon) {
+          icon.className = sortState.direction === 'asc'
+            ? 'ph-bold ph-caret-up text-neon-blue opacity-100'
+            : 'ph-bold ph-caret-down text-neon-blue opacity-100';
+        }
+      }
+    }
+
+    // --- Rendering ---
+
+    function updateStats() {
+      const total = filteredLogs.length;
+      const success = filteredLogs.filter(l => l.success).length;
+      const rate = total ? Math.round((success / total) * 100) : 0;
+
+      const successLogs = filteredLogs.filter(l => l.success);
+      const totalLatency = successLogs.reduce((acc, curr) => acc + curr.duration, 0);
+      const avgLatency = successLogs.length ? (totalLatency / successLogs.length).toFixed(3) : 0;
+
+      const protocols = new Set(filteredLogs.map(l => l.protocol)).size;
+
+      animateValue("statTotal", parseInt(document.getElementById("statTotal").innerText) || 0, total, 1000);
+      document.getElementById("statSuccessRate").innerText = `${rate}%`;
+      document.getElementById("statSuccessCount").innerText = success;
+      document.getElementById("statLatency").innerText = `${(avgLatency * 1000).toFixed(0)}ms`;
+      document.getElementById("statProtocols").innerText = protocols;
+    }
+
+    function animateValue(id, start, end, duration) {
+      const obj = document.getElementById(id);
+      if (start === end) return;
+      let startTimestamp = null;
+      const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        obj.innerHTML = Math.floor(progress * (end - start) + start);
+        if (progress < 1) {
+          window.requestAnimationFrame(step);
+        }
+      };
+      window.requestAnimationFrame(step);
+    }
+
+    // --- Charts ---
+    let latencyChart = null;
+    let statusChart = null;
+    let timelineChart = null;
+
+    function updateCharts() {
+      const successLogs = filteredLogs.filter(l => l.success);
+      const html = document.documentElement;
+      const isDark = html.classList.contains('dark');
+      const labelColor = isDark ? '#94a3b8' : '#475569';
+      const gridColor = isDark ? 'rgba(51, 65, 85, 0.3)' : 'rgba(226, 232, 240, 0.8)';
+
+      // --- 1. Latency Chart (Model Avg) ---
+      const modelLatencyMap = {};
+      successLogs.forEach(l => {
+        if (!modelLatencyMap[l.model]) modelLatencyMap[l.model] = [];
+        modelLatencyMap[l.model].push(l.duration * 1000);
+      });
+
+      const labels = Object.keys(modelLatencyMap);
+      const dataPoints = labels.map(model => {
+        const latencies = modelLatencyMap[model];
+        const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+        return avg;
+      });
+
+      const ctx1 = document.getElementById('latencyChart').getContext('2d');
+      if (latencyChart) latencyChart.destroy();
+
+      latencyChart = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Avg Latency (ms)',
+            data: dataPoints,
+            backgroundColor: 'rgba(43, 152, 232, 0.6)',
+            borderColor: '#2b98e8',
+            borderWidth: 1,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+              titleColor: isDark ? '#fff' : '#000',
+              bodyColor: isDark ? '#ccc' : '#444',
+              borderColor: isDark ? '#334155' : '#e2e8f0',
+              borderWidth: 1
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: gridColor },
+              ticks: { color: labelColor }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { display: false, color: labelColor }
+            }
+          },
+          onClick: (e, activeEls) => {
+            if (activeEls.length > 0) {
+              const index = activeEls[0].index;
+              const model = labels[index];
+              document.getElementById('searchInput').value = model;
+              applyFilters();
+            }
+          }
+        }
+      });
+
+      // --- 2. Status Chart (Donut) ---
+      const failCount = filteredLogs.length - filteredLogs.filter(l => l.success).length;
+      const localSuccessCount = filteredLogs.filter(l => l.success).length;
+
+      const ctx2 = document.getElementById('statusChart').getContext('2d');
+      if (statusChart) statusChart.destroy();
+
+      statusChart = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: ['Success', 'Failure'],
+          datasets: [{
+            data: [localSuccessCount, failCount],
+            backgroundColor: [
+              'rgba(34, 197, 94, 0.8)',
+              'rgba(239, 68, 68, 0.8)'
+            ],
+            borderColor: isDark ? '#1e293b' : '#ffffff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: { color: labelColor, boxWidth: 12, padding: 20 }
+            }
+          }
+        }
+      });
+
+      // --- 3. Timeline Chart (Scatter) ---
+      const ctx3 = document.getElementById('timelineChart').getContext('2d');
+      if (timelineChart) timelineChart.destroy();
+
+      // Reverse for display so oldest is left if sorted desc
+      const timeSorted = [...filteredLogs].sort((a, b) => a.timestamp - b.timestamp);
+
+      const scatterData = timeSorted.map((l, i) => ({
+        x: i + 1, // Sequence
+        y: l.duration * 1000,
+        status: l.success,
+        model: l.model,
+        timestamp: l.timestamp
+      }));
+
+      timelineChart = new Chart(ctx3, {
+        type: 'line',
+        data: {
+          datasets: [{
+            label: 'Latency',
+            data: scatterData,
+            backgroundColor: (ctx) => 'rgba(43, 152, 232, 0.1)',
+            borderColor: 'rgba(43, 152, 232, 0.5)',
+            borderWidth: 1,
+            showLine: true,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: (ctx) => {
+              const val = ctx.raw;
+              return val && val.status ? '#22c55e' : '#ef4444';
+            },
+            segment: {
+              borderColor: (ctx) => 'rgba(43, 152, 232, 0.3)'
+            }
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const raw = ctx.raw;
+                  const timeStr = new Date(raw.timestamp * 1000).toLocaleTimeString();
+                  return `[${timeStr}] ${raw.model}: ${raw.y.toFixed(0)}ms (${raw.status ? 'Success' : 'Fail'})`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'linear',
+              position: 'bottom',
+              title: { display: true, text: 'Request Sequence', color: labelColor },
+              grid: { color: gridColor },
+              ticks: { color: labelColor }
+            },
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Latency (ms)', color: labelColor },
+              grid: { color: gridColor },
+              ticks: { color: labelColor }
+            }
+          }
+        }
+      });
+    }
+
+    function updateAnalytics() {
+      // --- Model Performance Table ---
+      const modelStats = {};
+
+      filteredLogs.forEach(l => {
+        const model = l.model || 'Unknown';
+        if (!modelStats[model]) {
+          modelStats[model] = { count: 0, success: 0, totalLatency: 0, latencies: [], errors: 0 };
+        }
+        const s = modelStats[model];
+        s.count++;
+        if (l.success) {
+          s.success++;
+          s.totalLatency += l.duration;
+          s.latencies.push(l.duration);
+        } else {
+          s.errors++;
+        }
+      });
+
+      const tbody = document.getElementById('modelAnalyticsBody');
+      tbody.innerHTML = '';
+
+      const sortedModels = Object.keys(modelStats).sort();
+
+      sortedModels.forEach(model => {
+        const s = modelStats[model];
+        const avg = s.success > 0 ? (s.totalLatency / s.success * 1000).toFixed(0) : 0;
+        const rate = Math.round((s.success / s.count) * 100);
+
+        s.latencies.sort((a, b) => a - b);
+        const p95Index = Math.floor(s.success * 0.95);
+        const p95 = s.success > 0 ? (s.latencies[p95Index] * 1000).toFixed(0) : 0;
+
+        let rateColor = 'bg-green-500';
+        if (rate < 80) rateColor = 'bg-yellow-500';
+        if (rate < 50) rateColor = 'bg-red-500';
+
+        const row = document.createElement('tr');
+        row.className = "hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border-b border-gray-100 dark:border-gray-800 last:border-0";
+        row.innerHTML = `
+                    <td class="p-3 font-medium text-gray-900 dark:text-white">${model}</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">${s.count}</td>
+                    <td class="p-3">
+                        <div class="flex items-center gap-2">
+                            <div class="w-16 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                <div class="h-full ${rateColor}" style="width: ${rate}%"></div>
+                            </div>
+                            <span class="text-xs text-gray-600 dark:text-gray-400">${rate}%</span>
+                        </div>
+                    </td>
+                    <td class="p-3 font-mono text-neon-blue text-xs">${avg}ms</td>
+                    <td class="p-3 font-mono text-purple-600 dark:text-purple-400 text-xs">${p95}ms</td>
+                    <td class="p-3 text-red-500 dark:text-red-400 font-bold text-xs">${s.errors > 0 ? s.errors : '-'}</td>
+                `;
+        tbody.appendChild(row);
+      });
+
+      // --- Error Breakdown ---
+      const errorCounts = {};
+      filteredLogs.filter(l => !l.success && l.error).forEach(l => {
+        const shortErr = l.error.length > 80 ? l.error.substring(0, 80) + '...' : l.error;
+        errorCounts[shortErr] = (errorCounts[shortErr] || 0) + 1;
+      });
+
+      const errorList = document.getElementById('errorList');
+      errorList.innerHTML = '';
+
+      const sortedErrors = Object.entries(errorCounts).sort((a, b) => b[1] - a[1]);
+
+      if (sortedErrors.length === 0) {
+        errorList.innerHTML = '<li class="text-center text-gray-400 italic py-4">No errors found</li>';
+      } else {
+        sortedErrors.forEach(([err, count]) => {
+          const li = document.createElement('li');
+          li.className = "flex justify-between items-start gap-2 p-2 rounded bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20";
+          li.innerHTML = `
+                        <span class="text-gray-700 dark:text-gray-300 font-mono break-all" title="${err}">${err}</span>
+                        <span class="shrink-0 bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">${count}</span>
+                    `;
+          errorList.appendChild(li);
+        });
+      }
+    }
+
+    function updateChartTheme() {
+      if (logs.length > 0) updateCharts();
+    }
+
+    // --- Table ---
+    function renderTable() {
+      const tbody = document.getElementById('logTableBody');
+      tbody.innerHTML = '';
+
+      filteredLogs.slice(0, 500).forEach((log, idx) => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-white/50 dark:hover:bg-gray-800/30 border-b border-gray-200/50 dark:border-gray-700/50 transition-colors group';
+
+        const statusIcon = log.success
+          ? `<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-500/20 text-green-400 glow-success"><i class="ph-bold ph-check"></i></span>`
+          : `<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-500/20 text-red-400 glow-error"><i class="ph-bold ph-x"></i></span>`;
+
+        const duration = (log.duration * 1000).toFixed(0) + 'ms';
+        const streamBadge = log.stream
+          ? `<span class="px-2 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30">STREAM</span>`
+          : `<span class="px-2 py-0.5 rounded text-[10px] bg-gray-700 text-gray-400 border border-gray-600">STATIC</span>`;
+
+        const timeStr = new Date(log.timestamp * 1000).toLocaleTimeString([], { hour12: false });
+
+        // Use DB ID if available, else usage sequence
+        const idDisplay = log.id || (idx + 1);
+
+        row.innerHTML = `
+                    <td class="p-4 text-center text-gray-500 dark:text-gray-600 font-mono text-xs">#${idDisplay}</td>
+                    <td class="p-4 font-mono text-xs text-gray-500 dark:text-gray-400">${timeStr}</td>
+                    <td class="p-4">${statusIcon}</td>
+                    <td class="p-4">
+                        <span class="font-bold text-gray-800 dark:text-gray-200">${log.protocol}</span>
+                    </td>
+                    <td class="p-4">
+                        <div class="text-xs text-gray-600 dark:text-gray-400 truncate max-w-[150px]" title="${log.model}">${log.model}</div>
+                        </td>
+                    <td class="p-4 font-mono text-neon-blue">${duration}</td>
+                    <td class="p-4">${streamBadge}</td>
+                    <td class="p-4 text-right">
+                        <button onclick="openModal(${idDisplay})" class="p-2 rounded hover:bg-gray-200/50 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                            <i class="ph-bold ph-caret-right"></i>
+                        </button>
+                    </td>
+                `;
+        tbody.appendChild(row);
+      });
+
+      document.getElementById('showingCount').innerText = `Showing ${Math.min(filteredLogs.length, 500)} of ${filteredLogs.length} records`;
+    }
+
+    // --- Modal ---
+    function openModal(id) {
+      // Find logic slightly robust to numeric vs string ID
+      const log = logs.find(l => l.id == id);
+      if (!log) return;
+
+      document.getElementById('modalId').innerText = `ID: ${log.id}`;
+      document.getElementById('modalProtocol').innerText = log.protocol;
+      document.getElementById('modalModel').innerText = log.model;
+      document.getElementById('modalLatency').innerText = (log.duration * 1000).toFixed(2) + ' ms';
+      document.getElementById('modalStream').innerText = log.stream ? 'True' : 'False';
+
+      // Header status
+      const header = document.getElementById('modalHeader');
+      if (log.success) {
+        header.className = "flex items-center justify-between p-4 rounded-xl border border-green-500/30 bg-green-500/10";
+        header.innerHTML = `<div class="flex items-center gap-3"><i class="ph-fill ph-check-circle text-2xl text-green-500"></i> <span class="text-green-600 dark:text-green-400 font-bold">Success</span></div>`;
+      } else {
+        header.className = "flex items-center justify-between p-4 rounded-xl border border-red-500/30 bg-red-500/10";
+        header.innerHTML = `<div class="flex items-center gap-3"><i class="ph-fill ph-x-circle text-2xl text-red-500"></i> <span class="text-red-600 dark:text-red-400 font-bold">Failed</span></div>`;
+      }
+
+      // Error
+      const errDiv = document.getElementById('modalErrorContainer');
+      if (log.error) {
+        errDiv.classList.remove('hidden');
+        document.getElementById('modalError').innerText = log.error;
+      } else {
+        errDiv.classList.add('hidden');
+      }
+
+      // Content
+      document.getElementById('modalContent').innerText = log.content || "(No content)";
+
+      // Tool Calls
+      const calls = log.tool_calls || [];
+      document.getElementById('modalToolCalls').innerText = JSON.stringify(calls, null, 2);
+
+      // Show
+      const modal = document.getElementById('detailModal');
+      const panel = document.getElementById('modalPanel');
+      modal.classList.remove('hidden');
+      setTimeout(() => {
+        panel.classList.remove('translate-x-full');
+      }, 10);
+    }
+
+    function closeModal() {
+      const panel = document.getElementById('modalPanel');
+      panel.classList.add('translate-x-full');
+      setTimeout(() => {
+        document.getElementById('detailModal').classList.add('hidden');
+      }, 300);
+    }
+
+  </script>
+  <!-- SVG Filter for Liquid Glass Effect -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="width:0;height:0;position:absolute;">
+    <defs>
+      <filter id="glass-distortion" x="0%" y="0%" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.008 0.008" numOctaves="2" seed="40" result="noise" />
+        <feGaussianBlur in="noise" stdDeviation="2" result="blurred" />
+        <feDisplacementMap in="SourceGraphic" in2="blurred" scale="30" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </defs>
+  </svg>
+</body>
+
+</html>

@@ -1,0 +1,9 @@
+services:
+  api-monitor:
+    build: .
+    container_name: api-monitor
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
