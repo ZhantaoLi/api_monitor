@@ -1,156 +1,196 @@
 ﻿# API Monitor
 
-一个独立于 `api_test/` 的 API 可用性巡检项目，目标是：
+`api_monitor` 是一个独立项目，用于批量管理 API 渠道并周期性执行模型测活。  
+它和 `api_test/` 目录没有运行时依赖关系。
 
-1. 统一管理多个 API 目标（`base_url + api_key`）。
-2. 定时执行模型测活（默认每个目标 30 分钟）。
-3. 提供主界面查看健康状态、成功率、最近执行结果。
-4. 提供详细日志可视化页面（图表 + 可排序表格 + 详情面板）。
+## 项目能力
 
-> 当前设计按你的要求：`api_key` 直接保存在本地 SQLite（不走环境变量）。
+- 管理多个目标渠道（`name + base_url + api_key`）
+- 定时巡检（每分钟扫描一次到期目标，默认目标间隔 30 分钟）
+- 模型并发检测（目标内并发默认 3，目标间并发默认 2）
+- 检测结果双写
+  - 结构化数据写入 SQLite
+  - 明细日志写入 JSONL（每次运行一个文件）
+- 可视化页面
+  - 仪表盘：渠道状态、模型健康、手动触发
+  - 日志查看：筛选、详情面板
+  - 分析页：图表统计与错误分布
 
-## 1. 功能概览
+## 技术栈
 
-- API 目标管理
-  - 新增目标、启用/禁用目标、手动立即执行目标。
-- 自动调度
-  - 后台每分钟扫描一次“到期目标”，到期后触发检测。
-- 结果存储
-  - 摘要数据写入 SQLite。
-  - 明细数据写入 JSONL（每次运行一个文件）。
-- Web 可视化
-  - 主界面：目标状态、成功率、最近运行时间、快捷操作。
-  - 日志页面：筛选、排序、图表交互、单条日志详情。
-
-## 2. 技术栈
-
-- 后端：FastAPI
+- 后端：FastAPI + Pydantic
 - 调度：APScheduler
-- 存储：SQLite
-- 前端：原生 HTML + CSS + JS + Chart.js
-- 部署：Docker / Docker Compose（也可直接 `uvicorn`）
+- 存储：SQLite（WAL）
+- 前端：HTML + Tailwind + Alpine.js + Chart.js
+- 部署：Docker Compose / `uvicorn`
 
-## 3. 目录结构（重点）
+## 目录结构
 
 ```text
 api_monitor/
-├─ app.py                  # FastAPI 入口，路由定义，静态页面挂载
-├─ monitor.py              # 调度器与测活执行逻辑（请求、路由判断、写日志）
-├─ db.py                   # SQLite 数据层（建表、增删改查、运行结果落库）
-├─ requirements.txt        # Python 依赖
-├─ Dockerfile              # 容器构建定义
-├─ docker-compose.yml      # 容器启动编排
-├─ .dockerignore           # 构建忽略规则
-├─ README.md               # 当前文档
+├─ app.py                    # FastAPI 入口与 API 路由
+├─ monitor.py                # 调度与测活执行
+├─ db.py                     # SQLite 数据访问层
+├─ requirements.txt          # Python 依赖
+├─ Dockerfile
+├─ docker-compose.yml
+├─ .dockerignore
+├─ .gitignore
+├─ .gitattributes
+├─ README.md
 ├─ web/
-│  ├─ index.html           # 主界面（目标管理 + 状态总览）
-│  └─ log_viewer.html      # 日志可视化页面（按 target_id 查看）
-└─ data/
-   ├─ registry.db          # SQLite 数据库（运行后自动生成）
+│  ├─ index.html             # 主界面
+│  ├─ log_viewer.html        # 日志详情页面
+│  ├─ analysis.html          # 统计分析页面
+│  └─ assets/
+│     ├─ main.js
+│     └─ styles.css
+└─ data/                     # 运行后生成（默认被 .gitignore 忽略）
+   ├─ registry.db
    └─ logs/
-      └─ target_<id>_<ts>.jsonl   # 每次检测的明细日志
+      └─ target_<id>_<yyyyMMdd_HHmmss>.jsonl
 ```
 
-说明：
+## Linux Docker 部署教程（Ubuntu 22.04）
 
-- `.venv/`、`__pycache__/` 是本地运行产物，不属于核心代码结构。
-- `data/` 建议持久化（Docker 里已通过 volume 挂载）。
-
-## 4. 核心流程
-
-1. 用户在主界面新增目标。
-2. `app.py` 调用 `db.py` 写入 `targets`。
-3. `monitor.py` 调度器扫描到期目标并执行检测。
-4. 每个模型检测结果：
-   - 写入 `data/logs/*.jsonl`（明细）
-   - 写入 `run_models`（结构化明细）
-5. 单次运行摘要写入 `runs`，并回写 `targets.last_*` 字段。
-6. 主界面和日志页通过 `/api/*` 接口读取数据并渲染。
-
-## 5. 主要接口（上手够用）
-
-- `GET /api/health`
-  - 服务健康检查。
-- `GET /api/dashboard`
-  - 主界面统计卡片数据。
-- `GET /api/targets`
-  - 目标列表。
-- `POST /api/targets`
-  - 新增目标。
-- `PATCH /api/targets/{target_id}`
-  - 更新目标（如启用/禁用）。
-- `POST /api/targets/{target_id}/run`
-  - 立即触发该目标检测。
-- `GET /api/targets/{target_id}/runs`
-  - 查看该目标的运行历史摘要。
-- `GET /api/targets/{target_id}/logs?scope=latest|all&limit=...`
-  - 获取日志可视化所需明细。
-
-## 6. 本地运行（不走 Docker）
+### 1. 安装 Docker 与 Compose 插件
 
 ```bash
-cd api_monitor
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app:app --host 0.0.0.0 --port 8000
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo $VERSION_CODENAME) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 ```
 
-访问：
-
-- 主界面：`http://127.0.0.1:8000/`
-- 日志页：`http://127.0.0.1:8000/viewer.html?target_id=1`
-
-## 7. Docker 运行
+可选（让当前用户免 `sudo`）：
 
 ```bash
-cd api_monitor
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+### 2. 拉取代码并进入项目
+
+```bash
+git clone <your-repo-url>
+cd <your-repo>/api_monitor
+```
+
+### 3. 启动服务
+
+```bash
 docker compose up -d --build
 docker compose ps
 ```
 
-访问：
-
-- `http://<你的IP>:8000/`
-
-停止：
+### 4. 验证服务
 
 ```bash
+curl http://127.0.0.1:8000/api/health
+```
+
+访问页面：
+
+- 主界面：`http://<服务器IP>:8000/`
+- 日志页：`http://<服务器IP>:8000/viewer.html?target_id=1`
+- 分析页：`http://<服务器IP>:8000/analysis.html?target_id=1`
+
+### 5. 常用运维命令
+
+```bash
+# 查看日志
+docker compose logs -f
+
+# 重启
+docker compose restart
+
+# 更新后重建
+git pull
+docker compose up -d --build
+
+# 停止并删除容器（保留 data/ 数据）
 docker compose down
 ```
 
-## 8. 数据表说明（简版）
+## 本地运行（不使用 Docker）
 
-- `targets`
-  - 目标配置与最近状态（`last_status`、`last_success`、`last_fail` 等）。
-- `runs`
-  - 每次运行摘要（开始/结束时间、成功失败数量、错误信息）。
-- `run_models`
-  - 每个模型的检测明细（protocol、model、duration、success、error 等）。
+```bash
+cd api_monitor
+python -m venv .venv
+# Linux / macOS
+source .venv/bin/activate
+# Windows PowerShell
+# .\.venv\Scripts\Activate.ps1
 
-## 9. 常见操作
+pip install -r requirements.txt
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
 
-1. 新增一个目标
-   - 打开主界面，填写名称、URL、Key，保存。
-2. 立即测试目标
-   - 在目标行点击“立即运行”。
-3. 查看目标日志
-   - 在目标行点击“查看日志”。
-4. 只看最近一次数据
-   - 在日志页 `Scope` 选 `latest`。
-5. 分析失败原因
-   - 日志页筛选 `仅失败`，点击表格行看右侧 `Error` 详情。
+## 核心流程
 
-## 10. 注意事项
+1. 新增目标后写入 `targets` 表。
+2. 主界面新增成功后，会立刻调用一次 `POST /api/targets/{id}/run` 触发即时检测。
+3. 调度器每分钟调用 `scan_due_targets`，筛选到期目标。
+4. 对目标执行：
+   - `GET /v1/models` 拉取模型列表
+   - 按规则分配到 `chat/responses/anthropic/gemini` 路由
+   - 并发检测并记录每个模型结果
+5. 结果入库：
+   - `runs`：单次运行摘要
+   - `run_models`：每个模型明细
+   - `targets.last_*`：目标最近状态快照
+6. 同时落盘 JSONL，便于外部排查与归档。
 
-- `api_key` 明文存储在 `registry.db`，请自行控制主机访问权限。
-- 若模型数量非常大，可在目标配置中设置 `max_models` 限制单次巡检量。
-- 如果部署在公网，建议加 Nginx 反代、IP 白名单或鉴权层（当前默认无登录）。
+## 后端接口（主要）
 
----
+- `GET /api/health`：服务健康与正在运行的目标
+- `GET /api/dashboard`：仪表盘统计
+- `GET /api/targets`：目标列表
+- `GET /api/targets/{target_id}`：单目标详情
+- `POST /api/targets`：新增目标
+- `PATCH /api/targets/{target_id}`：更新目标（启用/禁用、参数等）
+- `POST /api/targets/{target_id}/run`：立即运行目标
+- `GET /api/targets/{target_id}/runs`：目标运行历史
+- `GET /api/targets/{target_id}/logs`：日志数据（支持 `scope=latest|all`）
 
-如果后续要做二期扩展，建议优先做：
+## 目标配置字段（默认值）
 
-1. 目标分组与标签（按渠道/客户分组）。
-2. 告警通知（失败阈值触发 Telegram/飞书/Webhook）。
-3. 日志归档策略（按天分表或自动清理）。
+- `interval_min`: `30`
+- `timeout_s`: `30.0`
+- `verify_ssl`: `false`
+- `max_models`: `0`（0 表示不限制）
+- `anthropic_version`: `2025-09-29`
+- `prompt`:  
+  `What is the exact model identifier (model string) you are using for this chat/session?`
+
+## 数据说明
+
+- 数据库：`data/registry.db`
+- 日志文件：`data/logs/target_<id>_<timestamp>.jsonl`
+- JSONL 记录核心字段：
+  - `protocol`, `model`, `success`, `duration`, `status_code`
+  - `error`, `content`, `route`, `endpoint`, `timestamp`
+
+## data 目录清理策略
+
+- 清理对象只包含 `data/logs/*.jsonl`，不会删除 `data/registry.db`。
+- 仅按总大小清理：当 `data/logs` 总体积超过阈值时，自动从最旧日志开始删除。
+- 配置项：
+  - `LOG_CLEANUP_ENABLED=1`（开启清理）
+  - `LOG_MAX_SIZE_MB=500`（总大小上限，单位 MB）
+  - `LOG_MAX_SIZE_MB=0`（视为不限制，不触发清理）
+
+## 注意事项
+
+- 当前默认无登录鉴权；公网部署请自行加反向代理和访问控制。
+- `api_key` 明文存储在 SQLite（按你的需求设计）。
+- `.gitignore` 默认忽略 `data/`，提交仓库前不会带运行数据。

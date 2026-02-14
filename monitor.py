@@ -243,14 +243,20 @@ class MonitorService:
         log_dir: str,
         detect_concurrency: int = 3,
         max_parallel_targets: int = 2,
+        enable_log_cleanup: bool = True,
+        log_max_bytes: int = 500 * 1024 * 1024,
     ) -> None:
         self.db = db
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.detect_concurrency = max(1, int(detect_concurrency))
+        self.enable_log_cleanup = bool(enable_log_cleanup)
+        self.log_max_bytes = max(0, int(log_max_bytes))
         self._target_executor = ThreadPoolExecutor(max_workers=max_parallel_targets)
         self._running_targets: set[int] = set()
         self._lock = threading.Lock()
+        self._cleanup_lock = threading.Lock()
+        self._active_log_files: set[str] = set()
         self._scheduler = BackgroundScheduler(timezone="UTC")
         self._started = False
 
@@ -319,7 +325,9 @@ class MonitorService:
         target_id = int(target["id"])
         started_at = time.time()
         ts = time.strftime("%Y%m%d_%H%M%S", time.localtime(started_at))
-        log_file = str(self.log_dir / f"target_{target_id}_{ts}.jsonl")
+        log_file = str((self.log_dir / f"target_{target_id}_{ts}.jsonl").resolve())
+        with self._lock:
+            self._active_log_files.add(log_file)
         run_id = self.db.create_run(target_id=target_id, started_at=started_at, log_file=log_file)
 
         LOGGER.info("run start target=%s id=%d", target.get("name"), target_id)
@@ -406,6 +414,77 @@ class MonitorService:
                 last_error=err,
             )
             LOGGER.exception("run failed target=%s id=%d", target.get("name"), target_id)
+        finally:
+            with self._lock:
+                self._active_log_files.discard(log_file)
+            self._cleanup_data_logs()
+
+    def _cleanup_data_logs(self) -> None:
+        if not self.enable_log_cleanup or self.log_max_bytes <= 0:
+            return
+
+        with self._cleanup_lock:
+            with self._lock:
+                active_files = set(self._active_log_files)
+
+            entries: List[Dict[str, Any]] = []
+            for path in self.log_dir.glob("*.jsonl"):
+                try:
+                    resolved = str(path.resolve())
+                except OSError:
+                    resolved = str(path)
+                if resolved in active_files:
+                    continue
+                try:
+                    st = path.stat()
+                except OSError:
+                    continue
+                entries.append(
+                    {
+                        "path": path,
+                        "mtime": float(st.st_mtime),
+                        "size": int(st.st_size),
+                    }
+                )
+
+            entries.sort(key=lambda item: item["mtime"], reverse=True)
+
+            total_bytes = sum(int(item["size"]) for item in entries)
+            if total_bytes <= self.log_max_bytes:
+                return
+
+            to_delete: List[Dict[str, Any]] = []
+            for item in reversed(entries):
+                if total_bytes <= self.log_max_bytes:
+                    break
+                to_delete.append(item)
+                total_bytes -= int(item["size"])
+
+            deleted_files, deleted_bytes = self._delete_log_entries(to_delete)
+            if deleted_files > 0:
+                LOGGER.info(
+                    "cleanup data/logs removed files=%d reclaimed=%.2fMB (max_mb=%d)",
+                    deleted_files,
+                    (deleted_bytes / 1024.0 / 1024.0),
+                    int(self.log_max_bytes / 1024 / 1024),
+                )
+
+    @staticmethod
+    def _delete_log_entries(entries: List[Dict[str, Any]]) -> Tuple[int, int]:
+        deleted_files = 0
+        deleted_bytes = 0
+        for item in entries:
+            path = item["path"]
+            size = int(item.get("size") or 0)
+            try:
+                path.unlink()
+                deleted_files += 1
+                deleted_bytes += size
+            except FileNotFoundError:
+                continue
+            except OSError as e:
+                LOGGER.warning("cleanup skip file %s: %s", path, e)
+        return deleted_files, deleted_bytes
 
     def _get_models(self, target: Dict[str, Any]) -> List[str]:
         base_url = normalize_base_url(str(target["base_url"]))
@@ -630,4 +709,3 @@ class MonitorService:
             "route": route,
             "endpoint": endpoint,
         }
-

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -29,12 +30,37 @@ logging.basicConfig(
 )
 LOGGER = logging.getLogger("api_monitor")
 
+
+def _env_int(name: str, default: int, *, minimum: int = 0) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        LOGGER.warning("invalid env %s=%r, fallback=%d", name, raw, default)
+        return default
+    return max(minimum, value)
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
+LOG_CLEANUP_ENABLED = _env_bool("LOG_CLEANUP_ENABLED", True)
+LOG_MAX_SIZE_MB = _env_int("LOG_MAX_SIZE_MB", 500, minimum=0)
+
 db = Database(str(DB_PATH))
 monitor = MonitorService(
     db=db,
     log_dir=str(LOG_DIR),
     detect_concurrency=3,
     max_parallel_targets=2,
+    enable_log_cleanup=LOG_CLEANUP_ENABLED,
+    log_max_bytes=LOG_MAX_SIZE_MB * 1024 * 1024,
 )
 
 
@@ -79,6 +105,11 @@ def _target_runtime_fields(target: Dict[str, Any]) -> Dict[str, Any]:
 async def lifespan(_: FastAPI):
     db.init_db()
     monitor.start()
+    LOGGER.info(
+        "log cleanup config enabled=%s max_mb=%d",
+        LOG_CLEANUP_ENABLED,
+        LOG_MAX_SIZE_MB,
+    )
     LOGGER.info("api_monitor started")
     try:
         yield
@@ -216,4 +247,3 @@ def get_logs(
         "count": len(logs),
         "items": logs,
     }
-
