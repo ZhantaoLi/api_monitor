@@ -75,6 +75,7 @@ class TargetCreate(BaseModel):
     prompt: str = Field(default="What is the exact model identifier (model string) you are using for this chat/session?", min_length=1, max_length=4000)
     anthropic_version: str = Field(default="2025-09-29", min_length=4, max_length=64)
     max_models: int = Field(default=0, ge=0, le=5000)
+    source_url: Optional[str] = Field(default=None, max_length=1024)
 
 
 class TargetPatch(BaseModel):
@@ -88,6 +89,7 @@ class TargetPatch(BaseModel):
     prompt: Optional[str] = Field(default=None, min_length=1, max_length=4000)
     anthropic_version: Optional[str] = Field(default=None, min_length=4, max_length=64)
     max_models: Optional[int] = Field(default=None, ge=0, le=5000)
+    source_url: Optional[str] = Field(default=None, max_length=1024)
 
 
 def _target_runtime_fields(target: Dict[str, Any]) -> Dict[str, Any]:
@@ -197,6 +199,18 @@ def patch_target(target_id: int, payload: TargetPatch) -> Dict[str, Any]:
     if not updated:
         raise HTTPException(status_code=404, detail="target not found")
     return {"item": _target_runtime_fields(updated)}
+
+
+@app.delete("/api/targets/{target_id}")
+def delete_target(target_id: int) -> Dict[str, Any]:
+    existing = db.get_target(target_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="target not found")
+    # monitor.stop_target_monitoring(target_id)  # Not implemented yet
+    success = db.delete_target(target_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="target not found")
+    return {"ok": True}
 
 
 @app.post("/api/targets/{target_id}/run")

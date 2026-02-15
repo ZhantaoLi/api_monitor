@@ -1043,7 +1043,7 @@
           ? `<span class="px-2 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30">STREAM</span>`
           : `<span class="px-2 py-0.5 rounded text-[10px] bg-gray-700 text-gray-400 border border-gray-600">STATIC</span>`;
 
-        const timeStr = new Date(log.timestamp * 1000).toLocaleTimeString([], { hour12: false });
+        const timeStr = new Date(log.timestamp * 1000).toLocaleTimeString('en-US', { hour12: false });
 
         // Use DB ID if available, else usage sequence
         const idDisplay = log.id || (idx + 1);

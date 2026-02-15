@@ -64,7 +64,8 @@ class Database:
                     last_success INTEGER,
                     last_fail INTEGER,
                     last_log_file TEXT,
-                    last_error TEXT
+                    last_error TEXT,
+                    source_url TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS runs (
@@ -116,6 +117,18 @@ class Database:
                 ON run_models(run_id);
                 """
             )
+        self._migrate_db()
+
+    def _migrate_db(self) -> None:
+        """Add missing columns to existing tables."""
+        with self._connect() as conn:
+            # Check if source_url exists in targets
+            columns = [info[1] for info in conn.execute("PRAGMA table_info(targets)").fetchall()]
+            if "source_url" not in columns:
+                try:
+                    conn.execute("ALTER TABLE targets ADD COLUMN source_url TEXT")
+                except sqlite3.OperationalError:
+                    pass
 
     def list_targets(self) -> List[Dict[str, Any]]:
         with self._connect() as conn:
@@ -142,8 +155,8 @@ class Database:
                     """
                     INSERT INTO targets (
                         name, base_url, api_key, enabled, interval_min, timeout_s, verify_ssl,
-                        prompt, anthropic_version, max_models, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        prompt, anthropic_version, max_models, source_url, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         payload["name"],
@@ -156,6 +169,7 @@ class Database:
                         payload.get("prompt", "What is the exact model identifier (model string) you are using for this chat/session?"),
                         payload.get("anthropic_version", "2025-09-29"),
                         int(payload.get("max_models", 0)),
+                        payload.get("source_url"),
                         now,
                         now,
                     ),
@@ -180,7 +194,9 @@ class Database:
             "verify_ssl",
             "prompt",
             "anthropic_version",
+            "anthropic_version",
             "max_models",
+            "source_url",
         }
         fields = []
         values: List[Any] = []
@@ -210,6 +226,14 @@ class Database:
                     tuple(values),
                 )
         return self.get_target(target_id)
+
+        return self.get_target(target_id)
+
+    def delete_target(self, target_id: int) -> bool:
+        with self._write_lock:
+            with self._connect() as conn:
+                cur = conn.execute("DELETE FROM targets WHERE id = ?", (target_id,))
+                return cur.rowcount > 0
 
     def list_due_targets(self, now_ts: float) -> List[Dict[str, Any]]:
         with self._connect() as conn:

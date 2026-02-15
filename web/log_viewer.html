@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="zh-CN" class="dark">
+<html lang="en" class="dark">
 
 <head>
   <meta charset="UTF-8">
@@ -123,7 +123,7 @@
             <div class="pl-3">
               <div class="flex items-center justify-between mb-1">
                 <span class="font-bold text-sm truncate pr-2" x-text="log.model"></span>
-                <span class="font-mono text-xs text-zinc-400" x-text="Utils.formatTime(log.timestamp)"></span>
+                <span class="font-mono text-xs text-zinc-400" x-text="Utils.fmtTime(log.timestamp)"></span>
               </div>
               <div class="flex items-center justify-between text-xs">
                 <div class="flex items-center gap-2">
@@ -166,7 +166,7 @@
                 </h2>
                 <div class="flex items-center gap-3 text-sm text-zinc-500 mt-1">
                   <span class="flex items-center gap-1"><i class="ph-bold ph-clock"></i> <span
-                      x-text="new Date(selectedLog.timestamp * 1000).toLocaleString()"></span></span>
+                      x-text="Utils.fmtFullTime(selectedLog.timestamp)"></span></span>
                   <span class="flex items-center gap-1"><i class="ph-bold ph-hash"></i> <span
                       x-text="'ID: ' + selectedLog.id"></span></span>
                 </div>

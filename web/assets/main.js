@@ -8,14 +8,14 @@ const Utils = {
         // Check if today
         const now = new Date();
         if (d.toDateString() === now.toDateString()) {
-            return d.toLocaleTimeString('zh-CN', { hour12: false });
+            return d.toLocaleTimeString('en-US', { hour12: false });
         }
-        return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' + d.toLocaleTimeString('zh-CN', { hour12: false });
+        return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' }) + ' ' + d.toLocaleTimeString('en-US', { hour12: false });
     },
 
     fmtFullTime(ts) {
         if (!ts) return '-';
-        return new Date(ts * 1000).toLocaleString('zh-CN', { hour12: false });
+        return new Date(ts * 1000).toLocaleString('en-US', { hour12: false });
     },
 
     // Format duration (seconds) to ms string + color class

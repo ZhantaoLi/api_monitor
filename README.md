@@ -1,7 +1,6 @@
 ﻿# API Monitor
 
-`api_monitor` 是一个独立项目，用于批量管理 API 渠道并周期性执行模型测活。  
-它和 `api_test/` 目录没有运行时依赖关系。
+`API Monitor` 是一个用于批量管理 API 渠道并周期性执行模型测活的小项目。  
 
 ## 项目能力
 
@@ -11,10 +10,11 @@
 - 检测结果双写
   - 结构化数据写入 SQLite
   - 明细日志写入 JSONL（每次运行一个文件）
-- 可视化页面
-  - 仪表盘：渠道状态、模型健康、手动触发
-  - 日志查看：筛选、详情面板
-  - 分析页：图表统计与错误分布
+-   可视化页面
+    -   支持深色/浅色模式切换
+    -   仪表盘：渠道状态、模型健康、手动触发、删除渠道
+    -   日志查看：筛选、详情面板
+    -   分析页：图表统计与错误分布
 
 ## 技术栈
 
@@ -133,6 +133,7 @@ uvicorn app:app --host 0.0.0.0 --port 8081
 - `POST /api/targets`：新增目标
 - `PATCH /api/targets/{target_id}`：更新目标（启用/禁用、参数等）
 - `POST /api/targets/{target_id}/run`：立即运行目标
+- `DELETE /api/targets/{target_id}`：删除目标
 - `GET /api/targets/{target_id}/runs`：目标运行历史
 - `GET /api/targets/{target_id}/logs`：日志数据（支持 `scope=latest|all`）
 
@@ -143,6 +144,7 @@ uvicorn app:app --host 0.0.0.0 --port 8081
 - `verify_ssl`: `false`
 - `max_models`: `0`（0 表示不限制）
 - `anthropic_version`: `2025-09-29`
+- `source_url`: `null`
 - `prompt`:  
   `What is the exact model identifier (model string) you are using for this chat/session?`
 
@@ -159,15 +161,13 @@ uvicorn app:app --host 0.0.0.0 --port 8081
 - 清理对象只包含 `data/logs/*.jsonl`，不会删除 `data/registry.db`。
 - 仅按总大小清理：当 `data/logs` 总体积超过阈值时，自动从最旧日志开始删除。
 - 配置项：
-  - `LOG_CLEANUP_ENABLED=1`（开启清理）
-  - `LOG_MAX_SIZE_MB=500`（总大小上限，单位 MB）
-  - `LOG_MAX_SIZE_MB=0`（视为不限制，不触发清理）
+  - `LOG_CLEANUP_ENABLED=1`
+  - `LOG_MAX_SIZE_MB=512`（总大小上限，单位 MB）
 
 ## 注意事项
 
 - 当前默认无登录鉴权；公网部署请自行加反向代理和访问控制。
-- `api_key` 明文存储在 SQLite（按你的需求设计）。
-- `.gitignore` 默认忽略 `data/`，提交仓库前不会带运行数据。
+- `api_key` 明文存储在 SQLite。
 
 ## 致谢
   
