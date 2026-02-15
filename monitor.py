@@ -1,3 +1,8 @@
+# TODO: Refactor to async architecture
+#   - Replace urllib with httpx.AsyncClient (connection pooling, HTTP/2, retries)
+#   - Replace ThreadPoolExecutor with asyncio.Semaphore
+#   - Replace BackgroundScheduler with AsyncIOScheduler
+#   - Convert http_json / _detect_one / _get_models / _run_target to async def
 from __future__ import annotations
 
 import json
@@ -15,6 +20,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
+import httpx
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from db import Database
@@ -259,6 +265,17 @@ class MonitorService:
         self._active_log_files: set[str] = set()
         self._scheduler = BackgroundScheduler(timezone="UTC")
         self._started = False
+        self._event_callback: Optional[Callable[[str, str], None]] = None
+
+    def set_event_callback(self, callback: Callable[[str, str], None]) -> None:
+        self._event_callback = callback
+
+    def _emit_event(self, event_type: str, data: str) -> None:
+        if self._event_callback:
+            try:
+                self._event_callback(event_type, data)
+            except Exception:
+                pass
 
     def start(self) -> None:
         if self._started:
@@ -391,6 +408,14 @@ class MonitorService:
                 success,
                 fail,
             )
+            self._emit_event("run_completed", json.dumps({
+                "target_id": target_id,
+                "target_name": target.get("name"),
+                "status": target_status,
+                "total": total,
+                "success": success,
+                "fail": fail,
+            }))
         except Exception as e:
             ended_at = time.time()
             err = f"{type(e).__name__}: {e}"

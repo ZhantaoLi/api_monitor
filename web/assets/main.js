@@ -1,11 +1,73 @@
 // shared utility functions
 
 const Utils = {
+    // ---------------------------------------------------------------
+    // Auth token management
+    // ---------------------------------------------------------------
+    getToken() {
+        // Priority: localStorage > URL param
+        const stored = localStorage.getItem('api_monitor_token');
+        if (stored) return stored;
+        const params = new URLSearchParams(window.location.search);
+        const fromUrl = params.get('token');
+        if (fromUrl) {
+            localStorage.setItem('api_monitor_token', fromUrl);
+            return fromUrl;
+        }
+        return '';
+    },
+
+    setToken(token) {
+        if (token) {
+            localStorage.setItem('api_monitor_token', token);
+        } else {
+            localStorage.removeItem('api_monitor_token');
+        }
+    },
+
+    authHeaders() {
+        const token = this.getToken();
+        if (!token) return {};
+        return { 'Authorization': `Bearer ${token}` };
+    },
+
+    /**
+     * Wrapper around fetch that includes auth headers.
+     * On 401, prompts user for token.
+     */
+    async authFetch(url, options = {}) {
+        const headers = { ...this.authHeaders(), ...(options.headers || {}) };
+        const res = await fetch(url, { ...options, headers });
+        if (res.status === 401) {
+            const token = prompt('Please enter API_MONITOR_TOKEN:');
+            if (token) {
+                this.setToken(token);
+                // Retry with new token
+                const retryHeaders = { ...this.authHeaders(), ...(options.headers || {}) };
+                return fetch(url, { ...options, headers: retryHeaders });
+            }
+        }
+        return res;
+    },
+
+    /**
+     * Create an SSE EventSource with token support.
+     */
+    createEventSource(url) {
+        const token = this.getToken();
+        if (token) {
+            const sep = url.includes('?') ? '&' : '?';
+            return new EventSource(`${url}${sep}token=${encodeURIComponent(token)}`);
+        }
+        return new EventSource(url);
+    },
+
+    // ---------------------------------------------------------------
     // Format timestamp (seconds) to readable string
+    // ---------------------------------------------------------------
     fmtTime(ts) {
         if (!ts) return '-';
         const d = new Date(ts * 1000);
-        // Check if today
         const now = new Date();
         if (d.toDateString() === now.toDateString()) {
             return d.toLocaleTimeString('en-US', { hour12: false });

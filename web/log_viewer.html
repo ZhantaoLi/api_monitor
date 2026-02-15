@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>API Monitor - Log Viewer</title>
 
+  <!-- Shared Utils (auth, theme, etc.) -->
+  <script src="/static/assets/main.js"></script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -295,8 +297,8 @@
           this.loading = true;
           try {
             const [tRes, lRes] = await Promise.all([
-              fetch(`/api/targets/${this.targetId}`),
-              fetch(`/api/targets/${this.targetId}/logs?limit=100&scope=latest`)
+              Utils.authFetch(`/api/targets/${this.targetId}`),
+              Utils.authFetch(`/api/targets/${this.targetId}/logs?limit=100&scope=latest`)
             ]);
 
             if (tRes.ok) {

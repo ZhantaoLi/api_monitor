@@ -5,6 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>API Monitor - Analysis</title>
+  <!-- Shared Utils (auth, theme, etc.) -->
+  <script src="/static/assets/main.js"></script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js -->
@@ -605,7 +607,7 @@
 
       try {
         // Fetch last 500 logs ?limit=500
-        const res = await fetch(`/api/targets/${targetId}/logs?limit=500`);
+        const res = await Utils.authFetch(`/api/targets/${targetId}/logs?limit=500`);
         if (!res.ok) throw new Error('Failed to fetch logs');
 
         const data = await res.json();

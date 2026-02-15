@@ -8,5 +8,6 @@ services:
     environment:
       - LOG_CLEANUP_ENABLED=1
       - LOG_MAX_SIZE_MB=512
+      - API_MONITOR_TOKEN=lming
     volumes:
       - ./data:/app/data

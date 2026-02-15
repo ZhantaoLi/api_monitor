@@ -10,18 +10,24 @@
 - 检测结果双写
   - 结构化数据写入 SQLite
   - 明细日志写入 JSONL（每次运行一个文件）
--   可视化页面
-    -   支持深色/浅色模式切换
-    -   仪表盘：渠道状态、模型健康、手动触发、删除渠道
-    -   日志查看：筛选、详情面板
-    -   分析页：图表统计与错误分布
+- **Bearer Token 认证**（通过 `API_MONITOR_TOKEN` 环境变量配置）
+- **SSE 实时推送**（检测完成后通过 Server-Sent Events 自动推送到前端）
+- 可视化页面
+    - 全英文界面 (English Interface)
+    - 支持深色/浅色模式切换
+    - 仪表盘：渠道状态、模型健康、手动触发、删除渠道
+    - 日志查看：筛选、详情面板
+    - 分析页：图表统计与错误分布
 
 ## 技术栈
 
 - 后端：FastAPI + Pydantic
+- HTTP 客户端：httpx
 - 调度：APScheduler
 - 存储：SQLite（WAL）
+- 实时推送：Server-Sent Events (SSE)
 - 前端：HTML + Tailwind + Alpine.js + Chart.js
+- 测试：pytest + pytest-asyncio
 - 部署：Docker Compose / `uvicorn`
 
 ## 目录结构
@@ -45,6 +51,10 @@ api_monitor/
 │  └─ assets/
 │     ├─ main.js
 │     └─ styles.css
+├─ tests/
+│  ├─ test_db.py             # 数据库 CRUD 测试
+│  ├─ test_monitor.py        # 协议路由测试
+│  └─ test_api.py            # API 端点集成测试
 └─ data/                     # 运行后生成（默认被 .gitignore 忽略）
    ├─ registry.db
    └─ logs/
@@ -109,6 +119,31 @@ pip install -r requirements.txt
 uvicorn app:app --host 0.0.0.0 --port 8081
 ```
 
+## 安全认证
+
+通过环境变量 `API_MONITOR_TOKEN` 配置 Bearer Token 认证：
+
+```bash
+# docker-compose.yml
+environment:
+  - API_MONITOR_TOKEN=your-secret-token
+
+# 或直接设置环境变量
+export API_MONITOR_TOKEN=your-secret-token
+```
+
+- **未设置**时：所有 API 无需认证即可访问（向后兼容）
+- **设置后**：需在请求头中传递 `Authorization: Bearer <token>`
+- **豁免端点**：`/api/health` 和静态页面始终无需认证
+- **前端处理**：Token 无效时自动弹出输入框，支持 `?token=` URL 参数和 `localStorage` 存储
+
+## 运行测试
+
+```bash
+pip install -r requirements.txt
+pytest tests/ -v
+```
+
 ## 核心流程
 
 1. 新增目标后写入 `targets` 表。
@@ -123,17 +158,19 @@ uvicorn app:app --host 0.0.0.0 --port 8081
    - `run_models`：每个模型明细
    - `targets.last_*`：目标最近状态快照
 6. 同时落盘 JSONL，便于外部排查与归档。
+7. 检测完成后通过 SSE 推送 `run_completed` 事件到前端。
 
 ## 后端接口（主要）
 
-- `GET /api/health`：服务健康与正在运行的目标
+- `GET /api/health`：服务健康与正在运行的目标（**无需认证**）
+- `GET /api/events`：SSE 实时事件流
 - `GET /api/dashboard`：仪表盘统计
 - `GET /api/targets`：目标列表
 - `GET /api/targets/{target_id}`：单目标详情
 - `POST /api/targets`：新增目标
 - `PATCH /api/targets/{target_id}`：更新目标（启用/禁用、参数等）
-- `POST /api/targets/{target_id}/run`：立即运行目标
 - `DELETE /api/targets/{target_id}`：删除目标
+- `POST /api/targets/{target_id}/run`：立即运行目标
 - `GET /api/targets/{target_id}/runs`：目标运行历史
 - `GET /api/targets/{target_id}/logs`：日志数据（支持 `scope=latest|all`）
 
@@ -166,7 +203,8 @@ uvicorn app:app --host 0.0.0.0 --port 8081
 
 ## 注意事项
 
-- 当前默认无登录鉴权；公网部署请自行加反向代理和访问控制。
+- 建议通过 `API_MONITOR_TOKEN` 环境变量开启认证。
+- 公网部署请自行加反向代理和访问控制。
 - `api_key` 明文存储在 SQLite。
 
 ## 致谢
