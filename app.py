@@ -1,3 +1,12 @@
+# TODO: API Proxy feature
+#   - POST /v1/chat/completions       (OpenAI Chat API)
+#   - POST /v1/messages                (Anthropic Claude Messages API)
+#   - POST /v1/responses               (OpenAI Responses API)
+#   - POST /v1beta/models/{model}:generateContent       (Google Gemini API)
+#   - POST /v1beta/models/{model}:streamGenerateContent  (Google Gemini Streaming)
+#   - Proxy key management (create/revoke, per-channel/model access control)
+#   - Forward requests to upstream targets using stored api_key
+#   - Docs page at /docs/proxy
 from __future__ import annotations
 
 import asyncio

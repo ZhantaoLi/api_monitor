@@ -52,16 +52,23 @@
   <nav
     class="sticky top-0 z-40 w-full bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800">
     <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-      <!-- Logo -->
-      <div class="flex items-center gap-2 cursor-pointer" onclick="window.location.reload()">
-        <div class="relative w-8 h-8 flex items-center justify-center bg-zinc-900 dark:bg-white rounded-lg">
-          <i class="ph-bold ph-activity text-white dark:text-zinc-900 text-xl"></i>
-        </div>
-        <span class="text-xl font-bold text-zinc-900 dark:text-white">
-          API <span class="font-normal text-zinc-500 dark:text-zinc-400 ml-1">Monitor</span>
-        </span>
-      </div>
 
+      <!-- Logo -->
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 cursor-pointer" onclick="window.location.reload()">
+          <div class="relative w-8 h-8 flex items-center justify-center bg-zinc-900 dark:bg-white rounded-lg">
+            <i class="ph-bold ph-activity text-white dark:text-zinc-900 text-xl"></i>
+          </div>
+          <span class="text-xl font-bold text-zinc-900 dark:text-white">
+            API <span class="font-normal text-zinc-500 dark:text-zinc-400 ml-1">Monitor</span>
+          </span>
+        </div>
+        <a href="https://github.com/ZhantaoLi/api_monitor" target="_blank" rel="noopener noreferrer"
+          class="w-7 h-7 flex items-center justify-center rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+          title="GitHub">
+          <i class="ph-bold ph-github-logo text-lg"></i>
+        </a>
+      </div>
       <!-- Metrics (Desktop) -->
       <div class="hidden md:flex items-center gap-8">
         <div class="flex flex-col items-center">
@@ -344,14 +351,14 @@
             placeholder="e.g. OpenAI Prod">
         </div>
         <div class="space-y-1">
-          <label class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">Base URL</label>
-          <input type="text" x-model="form.base_url" class="w-full form-input rounded-lg px-3 py-2 text-sm font-mono"
-            placeholder="https://api.openai.com/v1">
-        </div>
-        <div class="space-y-1">
           <label class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">Source (Optional)</label>
           <input type="text" x-model="form.source_url" class="w-full form-input rounded-lg px-3 py-2 text-sm font-mono"
             placeholder="https://linux.do/t/topic/xxxxxxx">
+        </div>
+        <div class="space-y-1">
+          <label class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">Base URL</label>
+          <input type="text" x-model="form.base_url" class="w-full form-input rounded-lg px-3 py-2 text-sm font-mono"
+            placeholder="https://api.openai.com/v1">
         </div>
         <div class="space-y-1" x-data="{ showKey: false }">
           <label class="text-xxs font-bold text-zinc-500 uppercase tracking-wider">API Key</label>
@@ -539,6 +546,8 @@
 
         openEdit(t) {
           this.editingId = t.id;
+          this._editOriginalUrl = t.base_url;
+          this._editOriginalKey = t.api_key;
           this.form = { ...t };
           this.formError = '';
           this.modalOpen = true;
@@ -594,6 +603,12 @@
             // If creating new target, run immediately
             if (!this.editingId && newItem && newItem.id) {
               this.runTarget(newItem.id);
+            } else if (this.editingId && (
+              this.form.base_url !== this._editOriginalUrl ||
+              this.form.api_key !== this._editOriginalKey
+            )) {
+              // Key or URL changed, re-check immediately
+              this.runTarget(this.editingId);
             } else {
               this.loadData();
             }
